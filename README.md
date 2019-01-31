@@ -11,6 +11,8 @@
 
 * 通过获取method对象来获取对应的Class,再由Class名称获取原始的beanName,通过ioc容器由beanName获取bean对象进行注入
 ## 具体分析
+![流程图解](https://github.com/kvenLin/MySpringMVC/blob/master/web2/image/2019-01-31%2010-12-52%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE.png?raw=true)
+
 [参考博客](https://blog.csdn.net/Box_clf/article/details/86717306)
 ## 面试常问问题
 * Spring的生命周期是多久?
