@@ -85,6 +85,7 @@ public class ClfDispatcherServlet extends HttpServlet {
 
     @Override
     public void init(ServletConfig config) throws ServletException {
+        System.out.println("======================SpringMVC is initializing=====================");
         /**
          * 1.加载配置文件
          */
@@ -107,7 +108,6 @@ public class ClfDispatcherServlet extends HttpServlet {
          * 5.创建HandlerMapping将url和method建立对应关系
          */
         initHandlerMapping();
-        System.out.println("======================SpringMVC is initializing=====================");
     }
 
     private void initHandlerMapping() {

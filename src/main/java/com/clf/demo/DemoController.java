@@ -18,7 +18,7 @@ import java.io.PrintWriter;
  */
 @MyController
 @MyRequestMapping("/demo")
-public class DemoAction {
+public class DemoController {
 
     @MyAutowired
     private DemoService demoService;
