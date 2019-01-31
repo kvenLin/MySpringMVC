@@ -8,6 +8,8 @@ import com.clf.mvcframework.annotation.MyRequestParam;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
 
 /**
  * @Author: clf
@@ -26,6 +28,15 @@ public class DemoAction {
                       HttpServletResponse response,
                       @MyRequestParam("/name") String name){
         String result = demoService.get(name);
+        try {
+            PrintWriter writer = response.getWriter();
+            writer.write(result);
+            if (writer != null){
+                writer.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @MyRequestMapping("/add")

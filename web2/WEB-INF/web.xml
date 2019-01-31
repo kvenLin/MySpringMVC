@@ -8,10 +8,11 @@
         <servlet-name>clfmvc</servlet-name>
         <servlet-class>com.clf.mvcframework.servlet.ClfDispatcherServlet</servlet-class>
         <init-param>
-            <!--设置初始化参数,即properties文件-->
+            <!--设置初始化参数,即properties文件的路径-->
             <param-name>contextConfigLocation</param-name>
             <param-value>application.properties</param-value>
         </init-param>
+        <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
         <servlet-name>clfmvc</servlet-name>

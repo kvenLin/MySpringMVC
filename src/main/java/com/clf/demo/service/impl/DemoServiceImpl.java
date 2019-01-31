@@ -10,7 +10,8 @@ import com.clf.mvcframework.annotation.MyService;
  */
 @MyService
 public class DemoServiceImpl implements DemoService {
+    @Override
     public String get(String name) {
-        return null;
+        return "success, My name is " + name;
     }
 }

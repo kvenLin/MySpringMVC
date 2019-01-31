@@ -1,6 +1,8 @@
 package com.clf.mvcframework.servlet;
 
+import com.clf.mvcframework.annotation.MyAutowired;
 import com.clf.mvcframework.annotation.MyController;
+import com.clf.mvcframework.annotation.MyRequestMapping;
 import com.clf.mvcframework.annotation.MyService;
 
 import javax.servlet.ServletConfig;
@@ -11,6 +13,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
 
@@ -18,15 +23,26 @@ import java.util.*;
  * @Author: clf
  * @Date: 19-1-30
  * @Description:
+ * 完成整个Spring的初始化阶段
  */
 public class ClfDispatcherServlet extends HttpServlet {
 
+    /**
+     * 自定义加载配置信息的Context
+     */
     private Properties contextConfig = new Properties();
+    /**
+     * 存放所有类对象的集合
+     */
     private List<String> classNames = new ArrayList<String>();
     /**
      * 自定义ioc容器
      */
     private Map<String, Object> ioc = new HashMap<String, Object>();
+    /**
+     * 自定义一个HandlerMapping
+     */
+    private Map<String, Method> handlerMapping = new HashMap<String, Method>();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -36,11 +52,35 @@ public class ClfDispatcherServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         //调用doGet或者doPost方法 反射调用,将结果输出到浏览器
-        doDispatch();
+        try {
+            doDispatch(req, resp);
+        } catch (Exception e) {
+            e.printStackTrace();
+            resp.getWriter().write("500 Exception" + Arrays.toString(e.getStackTrace()));
+        }
     }
 
-    private void doDispatch() {
-
+    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws InvocationTargetException, IllegalAccessException {
+        if (this.handlerMapping.isEmpty()){ return; }
+        //获取请求的绝对路径
+        String url = req.getRequestURI();
+        String contextPath = req.getContextPath();
+        //获取相对路径
+        url.replace(contextPath, "").replaceAll("/+", "/");
+        if (!this.handlerMapping.containsKey(url)){
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        //通过HandlerMapping获取当前请求的方法
+        Method method = this.handlerMapping.get(url);
+        //获取请求的实参
+        Map<String, String[]> params = req.getParameterMap();
+        String beanName = lowerFirstCase(method.getDeclaringClass().getSimpleName());
+        String name = null;
+        if (params.containsKey("name")){
+            name = params.get("name")[0];
+        }
+        method.invoke(ioc.get(beanName), new Object[]{req, resp, name});
     }
 
     @Override
@@ -48,6 +88,7 @@ public class ClfDispatcherServlet extends HttpServlet {
         /**
          * 1.加载配置文件
          */
+        System.out.println("获取初始参数:" + config.getInitParameter("contextConfigLocation"));
         doLoadConfig(config.getInitParameter("contextConfigLocation"));
         /**
          * 2.解析配置文件,扫描所有相关的类
@@ -66,15 +107,64 @@ public class ClfDispatcherServlet extends HttpServlet {
          * 5.创建HandlerMapping将url和method建立对应关系
          */
         initHandlerMapping();
-
+        System.out.println("======================SpringMVC is initializing=====================");
     }
 
     private void initHandlerMapping() {
-
+        if (ioc.isEmpty()){ return; }
+        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
+            Class<?> clazz = entry.getValue().getClass();
+            //如果不是一个Controller直接跳过
+            if (!clazz.isAnnotationPresent(MyController.class)){ continue; }
+            String baseUrl = "";
+            //判断是否拥有RequestMapping注解
+            if (clazz.isAnnotationPresent(MyRequestMapping.class)){
+                MyRequestMapping requestMapping = clazz.getAnnotation(MyRequestMapping.class);
+                //获取Controller上的baseUrl
+                baseUrl = requestMapping.value();
+            }
+            Method[] methods = clazz.getMethods();
+            //遍历类的方法
+            for (Method method : methods) {
+                //如果没有MyRequestMapping直接跳过
+                if (!method.isAnnotationPresent(MyRequestMapping.class)) { continue; }
+                MyRequestMapping requestMapping = method.getAnnotation(MyRequestMapping.class);
+                //获取完整的url,同时使用正则将多个 "/" 替换成只有一个
+                String url = ("/" + baseUrl + "/" + requestMapping.value()).replaceAll("/+", "/");
+                handlerMapping.put(url, method);
+                System.out.println("Mapped: " + url + "," + method);
+            }
+        }
     }
 
     private void doAutowired() {
+        if (ioc.isEmpty()){ return; }
+        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
+            //获取当前类的所有的属性
+            Field[] fields = entry.getValue().getClass().getDeclaredFields();
+            //遍历属性
+            for (Field field : fields) {
+                //判断是否是需要进行依赖注入的属性
+                if (!field.isAnnotationPresent(MyAutowired.class)){ return; }
+                MyAutowired autowired = field.getAnnotation(MyAutowired.class);
+                //获取自定的注入的beanName
+                String beanName = autowired.value();
+                if ("".equals(beanName)){
+                    //获取到接口的全称
+                    beanName = field.getType().getName();
+                }
+                //强制赋值
+                field.setAccessible(true);
+                try {
+                    //从ioc获取实例进行注入
+                    field.set(entry.getValue(), ioc.get(beanName));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                    continue;
+                }
 
+            }
+        }
     }
 
     private void doInstance() {
@@ -156,6 +246,7 @@ public class ClfDispatcherServlet extends HttpServlet {
         //从类路径下去取得properties
         InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream(contextConfigLocation);
         try {
+            //加载所有配置信息
             contextConfig.load(inputStream);
         } catch (IOException e) {
             e.printStackTrace();
